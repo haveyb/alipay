@@ -5,7 +5,6 @@ class AliPay extends Base
 {
     private $orderInfo;
     public function __construct($type = 'RSA2', $orderInfo = []) {
-        $this->logs('log.txt', 'this is test log');
         $this->orderInfo = $orderInfo;
         if ($type == 'MD5') {
             $this->md5Pay();
