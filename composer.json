@@ -1,0 +1,21 @@
+{
+    "name": "haveyb/alipay",
+    "description": "用于快速接入支付宝支付，以及研究支付宝支付的流程",
+    "type": "library",
+    "require": {
+        "php": ">=7.1"
+    },
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "haveyb",
+            "email": "haveyb@163.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "autoload":{
+        "psr-4":{
+            "haveyb\\AliPay\\":"./src/"
+        }
+    }
+}
