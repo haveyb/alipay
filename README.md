@@ -63,4 +63,4 @@ new \haveyb\AliPay\AliPay('RSA2', $orderInfo);
 
 ![](example.png)　　
 
-Powered by https:www.haveyb.com
+Powered by https://www.haveyb.com/article/192
