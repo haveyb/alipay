@@ -1,175 +1,103 @@
 <?php
+declare(strict_types=1);
+
 namespace haveyb\AliPay;
 
-include 'config.php';
+require_once __DIR__ . '/config.php';
 
 class Base extends Rsa
 {
     /**
-     * 返回按照支付宝要求处理的urI
-     *
-     * @param $arr
-     * @param string $type
-     * @return string
+     * 按支付宝规则处理参数：去掉 sign，RSA 老方式再去掉 sign_type，然后 ksort 拼接
      */
-    public function getHandledUrI($arr, $type = 'RSA2')
+    public function getHandledUrI(array $arr, string $type = 'RSA2'): string
     {
-        // 筛选
-        if (isset($arr['sign'])) {
-            unset($arr['sign']);
-        }
-        if (isset($arr['sign_type']) && $type == 'RSA') {
+        unset($arr['sign']);
+        if ($type === 'RSA') {
             unset($arr['sign_type']);
         }
-        // 排序
         ksort($arr);
-        // 拼接
-        return $this->getUrl($arr,false);
+        return $this->getUrl($arr, false);
     }
 
     /**
-     * 将数组转换为 uri 格式的字符串
-     *
-     * @param $arr
-     * @param bool $encode
-     * @return string
+     * 数组转 query 字符串
+     * @param bool $encode true=URL 编码（拼最终请求地址用），false=不编码（签名用）
      */
-    public function getUrl($arr, $encode = true)
+    public function getUrl(array $arr, bool $encode = true): string
     {
-        return true == $encode ? http_build_query($arr) : urldecode(http_build_query($arr));
+        $query = http_build_query($arr);
+        return $encode ? $query : urldecode($query);
     }
 
-    /**
-     * 获取 md5、rsa、rsa2 中指定方式的签名
-     *
-     * @param $arr
-     * @param string $type
-     * @return string
-     */
-    public function getSign($arr, $type = 'RSA2')
-    {
-        $sign = '';
-        switch ($type) {
-            case 'MD5' :
-                $sign = md5($this->getHandledUrI($arr, 'MD5') . ALI_MD5_KEY);
-                break;
-            case 'RSA' :
-                $sign = $this->rsaSign($this->getHandledUrI($arr, 'RSA'), APP_PRIVATE_KEY) ;
-                break;
-            case 'RSA2' :
-                $sign = $this->rsaSign($this->getHandledUrI($arr,'RSA2'),
-                    APP_PRIVATE_KEY,'RSA2') ;
-                break;
-            default :
-                break;
-        }
-        return $sign;
-    }
-
-    /**
-     * 将处理后得到的签名存入数组，并返回 (MD5、RSA、RSA2)
-     *
-     * @param $arr
-     * @param string $type
-     * @return string
-     */
-    public function setSign($arr, $type = 'RSA2')
+    public function getSign(array $arr, string $type = 'RSA2'): string
     {
         switch ($type) {
-            case 'MD5' :
-                $arr['sign'] = $this->getSign($arr, 'MD5');
-                break;
-            case 'RSA' :
-                $arr['sign'] = $this->getSign($arr, 'RSA');
-                break;
-            case 'RSA2' :
-                $arr['sign'] = $this->getSign($arr, 'RSA2');
-                break;
-            default :
-                break;
+            case 'MD5':
+                return md5($this->getHandledUrI($arr, 'MD5') . ALI_MD5_KEY);
+            case 'RSA':
+                return $this->rsaSign($this->getHandledUrI($arr, 'RSA'), APP_PRIVATE_KEY, 'RSA');
+            case 'RSA2':
+                return $this->rsaSign($this->getHandledUrI($arr, 'RSA2'), APP_PRIVATE_KEY, 'RSA2');
+            default:
+                return '';
         }
+    }
+
+    public function setSign(array $arr, string $type = 'RSA2'): array
+    {
+        $arr['sign'] = $this->getSign($arr, $type);
         return $arr;
     }
 
-    /**
-     * 验证 md5 方式的签名
-     *
-     * @param $arr
-     * @return bool
-     */
-    public function checkMd5Sign($arr)
+    public function checkMd5Sign(array $arr): bool
     {
-        $sign = $this->getSign($arr, 'MD5');
-        return $sign == $arr['sign'] ? true : false;
+        return $this->getSign($arr, 'MD5') === ($arr['sign'] ?? '');
     }
 
     /**
-     * 验证是否来自支付宝的通知
-     *
-     * @param $arr
-     * @return bool
+     * 老接口（MD5/RSA）的 notify_id 合法性校验。
+     * 仅老 mapi 网关有效；RSA2 新接口请用公钥验签，不要再用本方法。
      */
-    public function isAliPay($arr)
+    public function isAliPay(array $arr): bool
     {
-        $checkUrl = 'https://mapi.alipay.com/gateway.do?service=notify_verify&partner=' . ALI_PID . '&notify_id=';
-        $checkUrl .= $arr['notify_id'];
-        $str = file_get_contents($checkUrl);
-        return $str == 'true' ? true : false;
+        $url = 'https://mapi.alipay.com/gateway.do?service=notify_verify&partner='
+            . ALI_PID . '&notify_id=' . ($arr['notify_id'] ?? '');
+        $resp = @file_get_contents($url);
+        return $resp === 'true';
+    }
+
+    public function checkOrderStatus(array $arr): bool
+    {
+        return in_array($arr['trade_status'] ?? '', ['TRADE_SUCCESS', 'TRADE_FINISHED'], true);
     }
 
     /**
-     * 验证交易状态
-     *
-     * @param $arr
-     * @return bool
+     * 校验订单金额与订单号是否一致，需对接自己的订单库。
+     * 返回 true 才视为有效通知。
      */
-    public function checkOrderStatus($arr)
+    public function checkOrderFee(array $postData): bool
     {
-        return $arr['trade_status'] == 'TRADE_SUCCESS' || $arr['trade_status'] == 'TRADE_FINISHED' ? true : false;
-    }
-
-    /**
-     * 验证订单金额 TODO
-     *
-     * @param $postData
-     * @return bool
-     */
-    public function checkOrderFee($postData)
-    {
+        // 示例：
+        // $order = Order::find($postData['out_trade_no']);
+        // return $order && $order->amount == $postData['total_amount'];
         return true;
-        /*
-        // 这里假设订单金额为0.03，订单号为54121548845，使用时数据库中查询验证
-        $orderNumber = '54121548845';
-        $totalFee = '0.03';
-        if ($postData['out_trade_no'] != $orderNumber || $postData['total_fee'] != $totalFee) {
-            return false;
-        } else {
-            return true;
+    }
+
+    /**
+     * 支付成功后更新订单状态，需对接自己的订单库。
+     */
+    public function changeOrderStatus(array $postData): bool
+    {
+        // Order::paySuccess($postData['out_trade_no']);
+        return true;
+    }
+
+    public function logs(string $filename, $data): void
+    {
+        if (!is_dir(LOG_PATH)) {
+            @mkdir(LOG_PATH, 0755, true);
         }
-        */
+        file_put_contents(LOG_PATH . $filename, $data . PHP_EOL, FILE_APPEND);
     }
-
-    /**
-     * 更改数据库中订单状态 TODO
-     *
-     * @param $postData
-     * @return bool
-     */
-    public function changeOrderStatus($postData)
-    {
-        // 去数据库中更改订单状态
-        return true;
-    }
-
-    /**
-     * 记录日志(使用时建议改为存储在数据库上)
-     *
-     * @param $filename
-     * @param $data
-     */
-    public function logs($filename,$data)
-    {
-        file_put_contents('./logs/' . $filename, $data . PHP_EOL, FILE_APPEND);
-    }
-
 }

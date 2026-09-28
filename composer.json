@@ -1,21 +1,21 @@
 {
     "name": "haveyb/alipay",
-    "description": "用于快速接入支付宝支付，以及研究支付宝支付的流程",
+    "description": "轻量支付宝电脑网站支付封装，内置 MD5 / RSA / RSA2 三种签名方式，便于快速接入与学习支付流程",
     "type": "library",
-    "require": {
-        "php": ">=7.1"
-    },
+    "keywords": ["alipay", "alipay-pay", "payment", "rsa2", "电脑网站支付"],
     "license": "MIT",
     "authors": [
-        {
-            "name": "haveyb",
-            "email": "haveyb@163.com"
-        }
+        { "name": "haveyb", "email": "haveyb@163.com" }
     ],
-    "minimum-stability": "dev",
-    "autoload":{
-        "psr-4":{
-            "haveyb\\AliPay\\":"./src/"
-        }
+    "require": {
+        "php": ">=7.1",
+        "ext-openssl": "*"
+    },
+    "autoload": {
+        "psr-4": { "haveyb\\AliPay\\": "src/" }
+    },
+    "config": {
+        "sort-packages": true,
+        "optimize-autoloader": true
     }
 }
